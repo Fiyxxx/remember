@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Remember — Smart Glasses Simulator</title>
+    <link rel="stylesheet" href="style.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  </head>
+  <body>
+    <div id="viewport">
+      <video id="webcam" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div id="subtitles"></div>
+
+    <div id="toast"></div>
+
+    <div id="checklist">
+      <h3>Checklist</h3>
+      <ul id="checklist-items"></ul>
+    </div>
+
+    <button id="ai-btn">Ask AI</button>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

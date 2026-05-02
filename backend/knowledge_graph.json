@@ -1,0 +1,18 @@
+{
+  "people": {
+    "alex_chen": {
+      "person_id": "alex_chen",
+      "display_name": "Alex Chen",
+      "descriptor": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      "topics": ["machine learning", "hiking"],
+      "notes": "",
+      "last_seen": null
+    }
+  },
+  "agenda": [
+    { "id": 1, "text": "Demo face recognition to judges", "done": false },
+    { "id": 2, "text": "Integrate Gemini knowledge graph updates", "done": false },
+    { "id": 3, "text": "Test speech transcription accuracy", "done": false },
+    { "id": 4, "text": "Polish overlay UI before final presentation", "done": false }
+  ]
+}
