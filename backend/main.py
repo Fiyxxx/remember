@@ -1,11 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import json
-from pathlib import Path
-
-import knowledge  # noqa: F401 — imported for contract; not yet implemented
-import ai  # noqa: F401 — imported for contract; not yet implemented
+import knowledge as kg_module
+import ai
 
 app = FastAPI(title="Remember API")
 
@@ -17,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-KG_PATH = Path(__file__).parent / "knowledge_graph.json"
+kg = kg_module.load_kg()
 
 
 class UpdatePersonRequest(BaseModel):
@@ -32,30 +29,49 @@ class IntroduceRequest(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    transcript: str
+    query: str
+    knowledge_graph: dict
 
 
 @app.get("/knowledge-graph")
 async def get_knowledge_graph():
-    if KG_PATH.exists():
-        with open(KG_PATH) as f:
-            return json.load(f)
-    return {"people": {}, "agenda": []}
+    return kg
 
 
 @app.post("/update-person")
 async def update_person(req: UpdatePersonRequest):
-    # TODO: call knowledge.load_kg(), ai.extract_new_facts(), knowledge.update_person(), knowledge.save_kg()
-    return {"status": "ok"}
+    person = kg_module.get_person(kg, req.person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail=f"Person {req.person_id} not found")
+
+    new_facts = ai.extract_new_facts(person, req.transcript)
+
+    if new_facts is None:
+        return {"person": person, "was_updated": False}
+
+    updates = {}
+    if new_facts.get("new_topics"):
+        existing = set(person.get("topics", []))
+        existing.update(new_facts["new_topics"])
+        updates["topics"] = list(existing)
+    if new_facts.get("notes_addition"):
+        existing_notes = person.get("notes", "")
+        updates["notes"] = (existing_notes + ". " + new_facts["notes_addition"]).strip(". ")
+
+    updated = kg_module.update_person(kg, req.person_id, updates)
+    return {"person": updated, "was_updated": True}
 
 
 @app.post("/introduce")
 async def introduce(req: IntroduceRequest):
-    # TODO: call knowledge.load_kg(), knowledge.introduce_person(), knowledge.save_kg()
-    return {"person_id": f"pending_{req.temp_id}"}
+    if len(req.descriptor) != 128:
+        raise HTTPException(status_code=400, detail="Descriptor must be exactly 128 floats")
+
+    person_id, person = kg_module.introduce_person(kg, req.temp_id, req.name, req.descriptor)
+    return {"person_id": person_id, "person": person}
 
 
 @app.post("/query")
 async def query(req: QueryRequest):
-    # TODO: call knowledge.load_kg(), ai.generate_query_response()
-    return {"response": "Not yet implemented"}
+    result = ai.generate_query_response(req.query, req.knowledge_graph)
+    return result
