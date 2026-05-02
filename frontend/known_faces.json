@@ -1,3 +1,12 @@
 {
-  "people": {}
+  "people": {
+    "han_sheng": {
+      "descriptor": [],
+      "display_name": "Han Sheng",
+      "topics": [],
+      "first_met": null,
+      "last_seen": null,
+      "notes": ""
+    }
+  }
 }

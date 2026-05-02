@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Remember — Smart Glasses Simulator</title>
     <link rel="stylesheet" href="style.css" />
-    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   </head>
   <body>
     <div id="viewport">
@@ -17,12 +17,13 @@
 
     <div id="toast"></div>
 
-    <div id="checklist">
-      <h3>Checklist</h3>
+    <div id="checklist" class="hidden">
+      <h3>Agenda</h3>
       <ul id="checklist-items"></ul>
     </div>
 
-    <button id="ai-btn">Ask AI</button>
+    <button id="enroll-btn">+ Enroll</button>
+    <button id="ai-btn">🎙 Ask AI</button>
 
     <script type="module" src="app.js"></script>
   </body>
