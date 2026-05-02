@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 *.pyo
 node_modules/
+knowledge_graph.json
