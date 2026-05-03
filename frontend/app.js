@@ -86,16 +86,21 @@ async function init() {
   });
 
   // 7. AI button — pause continuous mic, run one-shot query, then resume
+  const listeningOverlay = document.getElementById("listening-overlay");
+
   aiBtn?.addEventListener("click", () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { showToast("Speech not supported in this browser"); return; }
 
     speech.pause();
-    showToast("Listening...");
+    playChime("listen");
+    listeningOverlay?.classList.add("show");
 
     const oneShot = new SR();
     oneShot.onresult = async (event) => {
       const query = event.results[0][0].transcript;
+      listeningOverlay?.classList.remove("show");
+      playChime("think");
       showToast("Thinking...");
       try {
         const result = await queryAI(query);
@@ -106,7 +111,10 @@ async function init() {
         showToast("AI unavailable");
       }
     };
-    oneShot.onerror = () => showToast("Could not hear you");
+    oneShot.onerror = () => {
+      listeningOverlay?.classList.remove("show");
+      showToast("Could not hear you");
+    };
     oneShot.onend = () => speech.resume();
     oneShot.start();
   });
@@ -125,6 +133,13 @@ async function init() {
       speech.resume();
       muteBtn.classList.remove("muted");
       muteBtn.textContent = "Mute";
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && e.target === document.body) {
+      e.preventDefault();
+      muteBtn?.click();
     }
   });
 
@@ -195,6 +210,46 @@ function renderChecklist(items) {
   container.classList.remove("fade-in");
   void container.offsetWidth; // force reflow so animation restarts
   container.classList.add("fade-in");
+}
+
+function playChime(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+
+    if (type === "listen") {
+      // Two ascending soft tones — "open / ready"
+      [[440, 0, 0.12], [660, 0.13, 0.12]].forEach(([freq, start, dur]) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, ctx.currentTime + start);
+        g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + start + 0.02);
+        g.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur + 0.05);
+      });
+    } else {
+      // Single descending soft tone — "received / processing"
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(520, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(360, ctx.currentTime + 0.18);
+      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.25);
+    }
+  } catch (e) {
+    // AudioContext unavailable — silent fail
+  }
 }
 
 window.addEventListener("DOMContentLoaded", init);
