@@ -1,0 +1,4 @@
+*.bin
+backend/.env
+node_modules/
+__pycache__/

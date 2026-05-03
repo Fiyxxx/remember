@@ -31,6 +31,7 @@ def update_person(kg: dict, person_id: str, updates: dict) -> dict:
 
 
 def introduce_person(kg: dict, temp_id: str, name: str, descriptor: list[float]) -> tuple[str, dict]:
+    person_id = name.lower().replace(" ", "_")
     new_person = {
         "descriptor": descriptor,
         "display_name": name,
@@ -41,6 +42,6 @@ def introduce_person(kg: dict, temp_id: str, name: str, descriptor: list[float])
     }
     if temp_id in kg["people"]:
         del kg["people"][temp_id]
-    kg["people"][name] = new_person
+    kg["people"][person_id] = new_person
     save_kg(kg)
-    return name, new_person
+    return person_id, new_person

@@ -40,6 +40,9 @@ async def get_knowledge_graph():
 
 @app.post("/update-person")
 async def update_person(req: UpdatePersonRequest):
+    if len(req.transcript.split()) < 4:
+        return {"person": None, "was_updated": False}
+
     person = kg_module.get_person(kg, req.person_id)
     if not person:
         raise HTTPException(status_code=404, detail=f"Person {req.person_id} not found")
@@ -57,6 +60,8 @@ async def update_person(req: UpdatePersonRequest):
     if new_facts.get("notes_addition"):
         existing_notes = person.get("notes", "")
         updates["notes"] = (existing_notes + ". " + new_facts["notes_addition"]).strip(". ")
+    if new_facts.get("relationship"):
+        updates["relationship"] = new_facts["relationship"]
 
     updated = kg_module.update_person(kg, req.person_id, updates)
     return {"person": updated, "was_updated": True}
@@ -73,5 +78,41 @@ async def introduce(req: IntroduceRequest):
 
 @app.post("/query")
 async def query(req: QueryRequest):
-    result = ai.generate_query_response(req.query, req.knowledge_graph)
+    result = ai.generate_query_response(req.query, kg)
+
+    agenda_ops = result.pop("agenda_ops", [])
+    if agenda_ops:
+        for op_entry in agenda_ops:
+            op = op_entry.get("op")
+            if op == "add" and "item" in op_entry:
+                kg["agenda"].append(op_entry["item"])
+            elif op == "remove" and "index" in op_entry:
+                idx = op_entry["index"]
+                if 0 <= idx < len(kg["agenda"]):
+                    kg["agenda"].pop(idx)
+            elif op == "replace" and "index" in op_entry and "item" in op_entry:
+                idx = op_entry["index"]
+                if 0 <= idx < len(kg["agenda"]):
+                    kg["agenda"][idx] = op_entry["item"]
+            elif op == "clear":
+                kg["agenda"] = []
+        kg_module.save_kg(kg)
+        result["checklist"] = list(kg["agenda"])
+
     return result
+
+
+@app.delete("/admin/person/{person_id}")
+async def admin_delete_person(person_id: str):
+    if person_id not in kg["people"]:
+        raise HTTPException(status_code=404, detail="Person not found")
+    del kg["people"][person_id]
+    kg_module.save_kg(kg)
+    return {"ok": True}
+
+
+@app.post("/admin/reset")
+async def admin_reset():
+    kg["people"] = {}
+    kg_module.save_kg(kg)
+    return {"ok": True}
