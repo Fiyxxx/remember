@@ -40,6 +40,9 @@ async def get_knowledge_graph():
 
 @app.post("/update-person")
 async def update_person(req: UpdatePersonRequest):
+    if len(req.transcript.split()) < 4:
+        return {"person": None, "was_updated": False}
+
     person = kg_module.get_person(kg, req.person_id)
     if not person:
         raise HTTPException(status_code=404, detail=f"Person {req.person_id} not found")
@@ -57,6 +60,8 @@ async def update_person(req: UpdatePersonRequest):
     if new_facts.get("notes_addition"):
         existing_notes = person.get("notes", "")
         updates["notes"] = (existing_notes + ". " + new_facts["notes_addition"]).strip(". ")
+    if new_facts.get("relationship"):
+        updates["relationship"] = new_facts["relationship"]
 
     updated = kg_module.update_person(kg, req.person_id, updates)
     return {"person": updated, "was_updated": True}
@@ -75,3 +80,19 @@ async def introduce(req: IntroduceRequest):
 async def query(req: QueryRequest):
     result = ai.generate_query_response(req.query, req.knowledge_graph)
     return result
+
+
+@app.delete("/admin/person/{person_id}")
+async def admin_delete_person(person_id: str):
+    if person_id not in kg["people"]:
+        raise HTTPException(status_code=404, detail="Person not found")
+    del kg["people"][person_id]
+    kg_module.save_kg(kg)
+    return {"ok": True}
+
+
+@app.post("/admin/reset")
+async def admin_reset():
+    kg["people"] = {}
+    kg_module.save_kg(kg)
+    return {"ok": True}

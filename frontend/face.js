@@ -1,6 +1,8 @@
 import { LocalState } from "./state.js";
 
 let faceMatcher = null;
+const trackedFaces = new Map(); // id → face + lastSeenAt
+const FACE_TIMEOUT_MS = 600;
 
 export async function loadModels() {
   await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
@@ -34,9 +36,11 @@ async function runDetectionLoop(videoEl) {
     .withFaceLandmarks(true)
     .withFaceDescriptors();
 
-  LocalState.activeFaces = detections.map((d) => {
+  const now = Date.now();
+
+  for (const d of detections) {
     const box = d.detection.box;
-    let label = "unknown_" + Math.random().toString(36).slice(2, 6);
+    let label = null;
     let matched = false;
 
     if (faceMatcher) {
@@ -47,19 +51,69 @@ async function runDetectionLoop(videoEl) {
       }
     }
 
-    return {
-      id: label,
-      bbox: { x: box.x, y: box.y, w: box.width, h: box.height },
-      descriptor: d.descriptor,
-      matched,
-    };
-  });
+    if (matched) {
+      trackedFaces.set(label, {
+        id: label,
+        bbox: { x: box.x, y: box.y, w: box.width, h: box.height },
+        descriptor: d.descriptor,
+        matched: true,
+        lastSeenAt: now,
+      });
+    } else {
+      // Match to nearest existing unknown by center distance
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      let bestId = null;
+      let bestDist = Infinity;
+
+      for (const [id, tracked] of trackedFaces) {
+        if (tracked.matched) continue;
+        const tcx = tracked.bbox.x + tracked.bbox.w / 2;
+        const tcy = tracked.bbox.y + tracked.bbox.h / 2;
+        const dist = Math.hypot(cx - tcx, cy - tcy);
+        if (dist < bestDist && dist < 100) {
+          bestDist = dist;
+          bestId = id;
+        }
+      }
+
+      if (bestId) {
+        const existing = trackedFaces.get(bestId);
+        trackedFaces.set(bestId, {
+          ...existing,
+          bbox: { x: box.x, y: box.y, w: box.width, h: box.height },
+          descriptor: d.descriptor,
+          lastSeenAt: now,
+        });
+      } else {
+        const newId = "unknown_" + Math.random().toString(36).slice(2, 6);
+        trackedFaces.set(newId, {
+          id: newId,
+          bbox: { x: box.x, y: box.y, w: box.width, h: box.height },
+          descriptor: d.descriptor,
+          matched: false,
+          lastSeenAt: now,
+        });
+      }
+    }
+  }
+
+  // Expire faces not seen for FACE_TIMEOUT_MS
+  for (const [id, face] of trackedFaces) {
+    if (now - face.lastSeenAt > FACE_TIMEOUT_MS) {
+      trackedFaces.delete(id);
+    }
+  }
+
+  LocalState.activeFaces = Array.from(trackedFaces.values());
 }
 
 export function startDetectionLoop(videoEl) {
   setInterval(() => runDetectionLoop(videoEl), 100);
 }
 
+// Captures a face descriptor from the live video frame.
+// Returns { person_id, descriptor } or null if no face detected.
 export async function enrollFromVideo(videoEl, name) {
   const detection = await faceapi
     .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions())
@@ -73,30 +127,5 @@ export async function enrollFromVideo(videoEl, name) {
 
   const person_id = name.toLowerCase().replace(/\s+/g, "_");
   const descriptor = Array.from(detection.descriptor);
-
-  const stored = JSON.parse(localStorage.getItem("enrolled_descriptors") || "{}");
-  stored[person_id] = { display_name: name, descriptor };
-  localStorage.setItem("enrolled_descriptors", JSON.stringify(stored));
-
-  console.log("[face] Enrolled", name, "from webcam and saved to localStorage");
   return { person_id, descriptor };
-}
-
-export function loadEnrolledDescriptors(kg) {
-  const stored = JSON.parse(localStorage.getItem("enrolled_descriptors") || "{}");
-  for (const [person_id, data] of Object.entries(stored)) {
-    if (!kg.people[person_id]) {
-      kg.people[person_id] = {
-        descriptor: data.descriptor,
-        display_name: data.display_name,
-        topics: [],
-        first_met: new Date().toISOString().slice(0, 10),
-        last_seen: null,
-        notes: "",
-      };
-    } else {
-      kg.people[person_id].descriptor = data.descriptor;
-    }
-  }
-  return Object.keys(stored).length;
 }

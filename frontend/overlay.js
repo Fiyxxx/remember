@@ -1,11 +1,53 @@
 import { LocalState } from "./state.js";
 
+// faceId → { el, x, y }  (x/y are the smoothed screen positions)
+const cardPool = new Map();
+const LERP = 0.1; // smoothing factor per frame — lower = smoother but laggier
+
+function videoToScreen(vx, vy, videoEl) {
+  const cW = videoEl.clientWidth;
+  const cH = videoEl.clientHeight;
+  const vW = videoEl.videoWidth;
+  const vH = videoEl.videoHeight;
+  const videoAR = vW / vH;
+  const containerAR = cW / cH;
+  let scale, ox, oy;
+  if (videoAR > containerAR) {
+    scale = cH / vH;
+    ox = (cW - vW * scale) / 2;
+    oy = 0;
+  } else {
+    scale = cW / vW;
+    ox = 0;
+    oy = (cH - vH * scale) / 2;
+  }
+  return { x: vx * scale + ox, y: vy * scale + oy };
+}
+
+function getOrCreateCard(id, targetX, targetY) {
+  if (cardPool.has(id)) return cardPool.get(id);
+  const el = document.createElement("div");
+  el.className = "face-card";
+  document.getElementById("viewport").appendChild(el);
+  const entry = { el, x: targetX, y: targetY };
+  cardPool.set(id, entry);
+  return entry;
+}
+
+function removeStaleCards(activeIds) {
+  for (const [id, { el }] of cardPool) {
+    if (!activeIds.has(id)) {
+      el.remove();
+      cardPool.delete(id);
+    }
+  }
+}
+
 export function drawOverlay(canvas, videoEl) {
   const dpr = window.devicePixelRatio || 1;
   const displayW = canvas.clientWidth;
   const displayH = canvas.clientHeight;
 
-  // Buffer at physical pixel resolution so text is sharp on HiDPI screens
   if (canvas.width !== displayW * dpr || canvas.height !== displayH * dpr) {
     canvas.width = displayW * dpr;
     canvas.height = displayH * dpr;
@@ -16,83 +58,68 @@ export function drawOverlay(canvas, videoEl) {
 
   if (!videoEl.videoWidth) return;
 
-  // Scale from video-space coords (face-api output) to physical canvas pixels
-  const scaleX = canvas.width / videoEl.videoWidth;
-  const scaleY = canvas.height / videoEl.videoHeight;
-
-  ctx.save();
-  ctx.scale(scaleX, scaleY);
+  const activeIds = new Set(LocalState.activeFaces.map((f) => f.id));
+  removeStaleCards(activeIds);
 
   for (const face of LocalState.activeFaces) {
     const { x, y, w, h } = face.bbox;
-    const person = LocalState.knowledgeGraph.people[face.id];
+    const person = LocalState.knowledgeGraph?.people?.[face.id];
 
-    // Card to the right of the face, vertically centered on it
-    const cardW = 200;
-    const cardH = person?.topics?.length > 0 ? 72 : 52;
-    const cardGap = 10;
-    const cardX = Math.min(x + w + cardGap, videoEl.videoWidth - cardW - 4);
-    const cardY = Math.max(0, Math.min(y + h / 2 - cardH / 2, videoEl.videoHeight - cardH - 4));
+    const tr = videoToScreen(x + w, y, videoEl);
+    const bl = videoToScreen(x, y + h, videoEl);
+    const targetX = tr.x + 12;
+    const targetY = tr.y + (bl.y - tr.y) / 2;
 
-    ctx.fillStyle = "rgba(10, 10, 10, 0.82)";
-    roundRect(ctx, cardX, cardY, cardW, cardH, 8);
-    ctx.fill();
+    const entry = getOrCreateCard(face.id, targetX, targetY);
 
-    // Accent bar on the left edge of the card
-    ctx.fillStyle = face.matched ? "#6ee7b7" : "#FF6B6B";
-    roundRect(ctx, cardX, cardY, 3, cardH, 2);
-    ctx.fill();
+    // Lerp current position toward target
+    entry.x += (targetX - entry.x) * LERP;
+    entry.y += (targetY - entry.y) * LERP;
 
-    // Name
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 13px Inter, system-ui, sans-serif";
-    ctx.fillText(
-      person?.display_name || (face.matched ? face.id : "Unknown"),
-      cardX + 12,
-      cardY + 20
-    );
+    const color = face.matched ? "#6ee7b7" : "#FF6B6B";
+    const name = person?.display_name || (face.matched ? face.id : "Unknown");
+    const topics = person?.topics || [];
+    const notes = person?.notes || "";
+    const relationship = person?.relationship || "";
+    const lastSeen = person?.last_seen ? formatTime(person.last_seen) : null;
 
-    // Topics
-    if (person?.topics?.length > 0) {
-      ctx.fillStyle = "#9CA3AF";
-      ctx.font = "11px Inter, system-ui, sans-serif";
-      ctx.fillText(person.topics.slice(0, 2).join(" · "), cardX + 12, cardY + 38);
-    }
+    entry.el.style.cssText = `
+      position: fixed;
+      left: ${entry.x}px;
+      top: ${entry.y}px;
+      transform: translateY(-50%);
+      max-width: 460px;
+      z-index: 50;
+      pointer-events: none;
+    `;
 
-    // Last seen
-    if (person?.last_seen) {
-      ctx.fillStyle = "#6B7280";
-      ctx.font = "10px Inter, system-ui, sans-serif";
-      const row = person?.topics?.length > 0 ? cardY + 56 : cardY + 38;
-      ctx.fillText("Last seen " + formatTime(person.last_seen), cardX + 12, row);
-    }
+    entry.el.innerHTML = `
+      <div class="fc-inner" style="--accent:${color}">
+        <div class="fc-header">
+          <span class="fc-name">${esc(name)}</span>
+          ${relationship ? `<span class="fc-relationship">${esc(relationship)}</span>` : ""}
+        </div>
+        ${topics.length > 0 ? `<div class="fc-topics">${topics.map((t) => `<span class="fc-tag">${esc(t)}</span>`).join("")}</div>` : ""}
+        ${notes ? `<div class="fc-notes">${esc(truncate(notes, 300))}</div>` : ""}
+        ${lastSeen ? `<div class="fc-time">last seen ${lastSeen}</div>` : ""}
+      </div>
+    `;
   }
-
-  ctx.restore();
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function formatTime(isoString) {
+function truncate(s, max) {
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+function formatTime(iso) {
   try {
-    return new Date(isoString).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   } catch {
-    return isoString;
+    return "";
   }
 }
 

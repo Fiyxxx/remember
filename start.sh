@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
-# Start backend
+# Start backend (activate venv first)
 echo "[start] Starting backend on :8000..."
 cd backend
+source venv/bin/activate
 uvicorn main:app --reload --port 8000 &
 BACKEND_PID=$!
 cd ..
 
-# Start frontend
+# Start frontend static server
 echo "[start] Starting frontend on :3000..."
 npx serve frontend &
 FRONTEND_PID=$!
 
-echo "[start] Both services running. Ctrl+C to stop."
+echo "[start] Both services running."
+echo "[start]   Frontend: http://localhost:3000"
+echo "[start]   Backend:  http://localhost:8000"
+echo "[start] Ctrl+C to stop."
 
 cleanup() {
   echo "[start] Shutting down..."

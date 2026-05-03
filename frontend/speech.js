@@ -1,10 +1,11 @@
 import { LocalState } from "./state.js";
 
+// Returns { pause(), resume() } so callers can yield the mic temporarily
 export function startSpeechRecognition({ onTranscript, onPause }) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
     console.warn("[speech] SpeechRecognition not supported in this browser");
-    return;
+    return { pause() {}, resume() {} };
   }
 
   const recognition = new SR();
@@ -14,6 +15,7 @@ export function startSpeechRecognition({ onTranscript, onPause }) {
 
   let pauseTimer = null;
   let accumulatedFinal = "";
+  let paused = false;
 
   recognition.onresult = (event) => {
     let interim = "";
@@ -51,18 +53,28 @@ export function startSpeechRecognition({ onTranscript, onPause }) {
     console.warn("[speech] Error:", event.error);
   };
 
-  // Chrome stops recognition on silence — restart automatically
+  // Chrome stops on silence — restart unless deliberately paused
   recognition.onend = () => {
-    if (LocalState.isListening) {
-      try {
-        recognition.start();
-      } catch {
-        // Already starting — ignore
-      }
+    if (LocalState.isListening && !paused) {
+      try { recognition.start(); } catch {}
     }
   };
 
   recognition.start();
   LocalState.isListening = true;
   console.log("[speech] Recognition started");
+
+  return {
+    pause() {
+      paused = true;
+      clearTimeout(pauseTimer);
+      accumulatedFinal = "";
+      try { recognition.stop(); } catch {}
+    },
+    resume() {
+      paused = false;
+      LocalState.isListening = true;
+      try { recognition.start(); } catch {}
+    },
+  };
 }
