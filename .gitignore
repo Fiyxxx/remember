@@ -1,0 +1,11 @@
+# Enrollment photos — personal images, never commit
+frontend/enrollment/*.jpg
+frontend/enrollment/*.jpeg
+frontend/enrollment/*.png
+frontend/enrollment/*.webp
+
+# Face-api model weights — large binaries, download separately
+frontend/models/*.bin
+
+# Env
+.env

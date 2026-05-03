@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Remember — Admin</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        background: #0a0a0a;
+        color: #e5e7eb;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 0.95rem;
+        padding: 2rem;
+        min-height: 100vh;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #1f2937;
+      }
+
+      header h1 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: #6ee7b7;
+      }
+
+      header span {
+        font-size: 0.8rem;
+        color: #4b5563;
+      }
+
+      section { margin-bottom: 2.5rem; }
+
+      section h2 {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #6b7280;
+        margin-bottom: 1rem;
+      }
+
+      .people-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+      }
+
+      .person-card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 0.75rem;
+        padding: 1.2rem;
+        position: relative;
+      }
+
+      .person-card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #f9fafb;
+      }
+
+      .person-card .person-id {
+        font-size: 0.75rem;
+        color: #4b5563;
+        margin-bottom: 0.75rem;
+        font-family: monospace;
+      }
+
+      .field { margin-bottom: 0.5rem; }
+
+      .field label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6b7280;
+        display: block;
+        margin-bottom: 0.15rem;
+      }
+
+      .field value {
+        color: #d1d5db;
+        font-size: 0.875rem;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-top: 0.15rem;
+      }
+
+      .tag {
+        background: #1f2937;
+        color: #6ee7b7;
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 1rem;
+      }
+
+      .descriptor-badge {
+        display: inline-block;
+        background: #1f2937;
+        color: #4b5563;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 1rem;
+        font-family: monospace;
+      }
+
+      .delete-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: 1px solid #374151;
+        color: #6b7280;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s;
+      }
+
+      .delete-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+      .empty {
+        color: #4b5563;
+        font-style: italic;
+        font-size: 0.875rem;
+      }
+
+      .agenda-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .agenda-list li {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 0.5rem;
+        padding: 0.6rem 1rem;
+        color: #d1d5db;
+      }
+
+      .actions { display: flex; gap: 0.75rem; align-items: center; }
+
+      .btn {
+        padding: 0.5rem 1.2rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: background 0.15s;
+      }
+
+      .btn-ghost {
+        background: none;
+        border: 1px solid #374151;
+        color: #9ca3af;
+      }
+
+      .btn-ghost:hover { border-color: #6b7280; color: #e5e7eb; }
+
+      .btn-danger {
+        background: #7f1d1d;
+        color: #fca5a5;
+        border: 1px solid #991b1b;
+      }
+
+      .btn-danger:hover { background: #991b1b; }
+
+      .status {
+        font-size: 0.8rem;
+        color: #6b7280;
+        transition: color 0.2s;
+      }
+
+      .status.ok { color: #6ee7b7; }
+      .status.err { color: #f87171; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Remember · Admin</h1>
+      <span id="last-updated"></span>
+    </header>
+
+    <section>
+      <h2>Actions</h2>
+      <div class="actions">
+        <button class="btn btn-ghost" onclick="load()">↺ Refresh</button>
+        <button class="btn btn-danger" onclick="resetAll()">Reset all people</button>
+        <span class="status" id="status"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>People (<span id="people-count">0</span>)</h2>
+      <div class="people-grid" id="people-grid"></div>
+    </section>
+
+    <section>
+      <h2>Agenda</h2>
+      <ul class="agenda-list" id="agenda-list"></ul>
+    </section>
+
+    <script>
+      const API = "http://localhost:8000";
+
+      async function load() {
+        try {
+          const res = await fetch(`${API}/knowledge-graph`);
+          const kg = await res.json();
+          render(kg);
+          document.getElementById("last-updated").textContent =
+            "Updated " + new Date().toLocaleTimeString();
+        } catch (e) {
+          setStatus("Backend unreachable", true);
+        }
+      }
+
+      function render(kg) {
+        const people = kg.people || {};
+        const ids = Object.keys(people);
+        document.getElementById("people-count").textContent = ids.length;
+
+        const grid = document.getElementById("people-grid");
+        if (ids.length === 0) {
+          grid.innerHTML = '<p class="empty">No people enrolled yet.</p>';
+        } else {
+          grid.innerHTML = ids.map((id) => personCard(id, people[id])).join("");
+        }
+
+        const agenda = kg.agenda || [];
+        const ul = document.getElementById("agenda-list");
+        if (agenda.length === 0) {
+          ul.innerHTML = '<li class="empty">No agenda items.</li>';
+        } else {
+          ul.innerHTML = agenda
+            .map((item) => `<li>${esc(typeof item === "string" ? item : item.text || JSON.stringify(item))}</li>`)
+            .join("");
+        }
+      }
+
+      function personCard(id, p) {
+        const topics = (p.topics || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("");
+        const descriptorBadge = Array.isArray(p.descriptor) && p.descriptor.length === 128
+          ? `<span class="descriptor-badge">128-float enrolled</span>`
+          : `<span class="descriptor-badge" style="color:#f87171">no descriptor</span>`;
+
+        return `
+          <div class="person-card">
+            <button class="delete-btn" onclick="deletePerson('${esc(id)}')">Delete</button>
+            <h3>${esc(p.display_name || id)}</h3>
+            <div class="person-id">${esc(id)}</div>
+            <div class="field">
+              <label>Descriptor</label>
+              <value>${descriptorBadge}</value>
+            </div>
+            ${p.relationship ? `<div class="field"><label>Relationship</label><value>${esc(p.relationship)}</value></div>` : ""}
+            ${topics ? `<div class="field"><label>Topics</label><div class="tags">${topics}</div></div>` : ""}
+            ${p.notes ? `<div class="field"><label>Notes</label><value>${esc(p.notes)}</value></div>` : ""}
+            <div class="field">
+              <label>First met</label>
+              <value>${esc(p.first_met || "—")}</value>
+            </div>
+            <div class="field">
+              <label>Last seen</label>
+              <value>${p.last_seen ? new Date(p.last_seen).toLocaleString() : "—"}</value>
+            </div>
+          </div>`;
+      }
+
+      async function deletePerson(id) {
+        if (!confirm(`Delete ${id}?`)) return;
+        try {
+          const res = await fetch(`${API}/admin/person/${encodeURIComponent(id)}`, { method: "DELETE" });
+          if (!res.ok) throw new Error(await res.text());
+          setStatus("Deleted " + id);
+          load();
+        } catch (e) {
+          setStatus("Delete failed: " + e.message, true);
+        }
+      }
+
+      async function resetAll() {
+        if (!confirm("Reset all people? This cannot be undone.")) return;
+        try {
+          const res = await fetch(`${API}/admin/reset`, { method: "POST" });
+          if (!res.ok) throw new Error(await res.text());
+          setStatus("Knowledge graph reset");
+          load();
+        } catch (e) {
+          setStatus("Reset failed: " + e.message, true);
+        }
+      }
+
+      function setStatus(msg, isErr = false) {
+        const el = document.getElementById("status");
+        el.textContent = msg;
+        el.className = "status " + (isErr ? "err" : "ok");
+        setTimeout(() => { el.textContent = ""; el.className = "status"; }, 3000);
+      }
+
+      function esc(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      load();
+    </script>
+  </body>
+</html>
